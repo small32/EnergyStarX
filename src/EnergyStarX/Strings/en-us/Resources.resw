@@ -400,6 +400,21 @@ Click the pause button again to resume.</value>
   <data name="Settings_ProcessBlacklist.Description" xml:space="preserve">
     <value>Processes in blacklist will be throttled even when device is plugged in</value>
   </data>
+  <data name="Settings_HideSystemTrayIcon.Header" xml:space="preserve">
+    <value>Hide system tray icon</value>
+  </data>
+  <data name="Settings_HideSystemTrayIcon.Description" xml:space="preserve">
+    <value>Energy Star X keeps running in the background when the tray icon is hidden. To reopen the window, run the app again.</value>
+  </data>
+  <data name="Settings_ExitApp.Header" xml:space="preserve">
+    <value>Exit Energy Star X</value>
+  </data>
+  <data name="Settings_ExitAppButton.Content" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Exit_app_confirmation" xml:space="preserve">
+    <value>Exit Energy Star X?</value>
+  </data>
   <data name="Shell_DonateTextBlock.Text" xml:space="preserve">
     <value>Donate</value>
   </data>

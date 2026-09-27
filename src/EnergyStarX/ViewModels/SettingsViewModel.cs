@@ -15,6 +15,8 @@ public partial class SettingsViewModel : ObservableRecipient
     private readonly IDialogService dialogService;
     private readonly IStartupService startupService;
     private readonly ISettingsService settingsService;
+    private readonly ISystemTrayIconService systemTrayIconService;
+    private readonly IWindowService windowService;
 
     public string VersionDescription { get; } = $"{"AppDisplayName".ToLocalized()} ({Package.Current.Id.Architecture}) - {PackageInfo.VersionString}";
 
@@ -77,6 +79,16 @@ public partial class SettingsViewModel : ObservableRecipient
         set => SetProperty(ThrottleWhenPluggedIn, value, x => energyService.ThrottleWhenPluggedIn = x);
     }
 
+    public bool HideSystemTrayIcon
+    {
+        get => settingsService.HideSystemTrayIcon;
+        set => SetProperty(settingsService.HideSystemTrayIcon, value, x =>
+        {
+            settingsService.HideSystemTrayIcon = x;
+            systemTrayIconService.SetIconVisible(!x);
+        });
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ProcessWhitelistModified))]
     [NotifyPropertyChangedFor(nameof(ProcessWhitelistEditorDialogTitle))]
@@ -105,12 +117,21 @@ public partial class SettingsViewModel : ObservableRecipient
 
     public event EventHandler? ProcessBlacklistEditorDialogShowRequested;
 
-    public SettingsViewModel(IEnergyService energyService, IDialogService dialogService, IStartupService startupService, ISettingsService settingsService)
+    public SettingsViewModel(
+        IEnergyService energyService,
+        IDialogService dialogService,
+        IStartupService startupService,
+        ISettingsService settingsService,
+        ISystemTrayIconService systemTrayIconService,
+        IWindowService windowService
+        )
     {
         this.energyService = energyService;
         this.dialogService = dialogService;
         this.startupService = startupService;
         this.settingsService = settingsService;
+        this.systemTrayIconService = systemTrayIconService;
+        this.windowService = windowService;
 
         _ = Initialize();
     }
@@ -176,6 +197,15 @@ public partial class SettingsViewModel : ObservableRecipient
         if (await dialogService.ShowConfirmationDialog("Restore_to_default_process_blacklist".ToLocalized()))
         {
             energyService.ApplyAndSaveProcessBlacklist("DefaultProcessBlacklist".ToLocalized());
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExitApp()
+    {
+        if (await dialogService.ShowConfirmationDialog("Exit_app_confirmation".ToLocalized()))
+        {
+            windowService.ExitApp();
         }
     }
 

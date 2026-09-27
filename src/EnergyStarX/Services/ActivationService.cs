@@ -3,6 +3,7 @@ using EnergyStarX.Contracts.Services;
 using EnergyStarX.ViewModels;
 using EnergyStarX.Views;
 
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.AppLifecycle;
@@ -15,6 +16,7 @@ public class ActivationService : IActivationService
     private readonly IEnumerable<IActivationHandler> activationHandlers;
     private UIElement? shell = null;
     private readonly AppInstance currentAppInstance = AppInstance.GetCurrent();
+    private readonly DispatcherQueue dispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
     private readonly ISystemTrayIconService systemTrayIconService;
     private readonly IWindowService windowService;
@@ -37,6 +39,15 @@ public class ActivationService : IActivationService
         this.energyService = energyService;
         this.systemTrayIconService = systemTrayIconService;
         this.startupService = startupService;
+
+        // When another instance of the app is launched, it redirects its activation to this instance.
+        // Show the app window, since it may be hidden (or the system tray icon may be hidden by user).
+        currentAppInstance.Activated += CurrentAppInstance_Activated;
+    }
+
+    private void CurrentAppInstance_Activated(object? sender, AppActivationArguments e)
+    {
+        dispatcherQueue.TryEnqueue(() => windowService.ShowAppWindow());
     }
 
     public async Task Activate(object activationArgs)

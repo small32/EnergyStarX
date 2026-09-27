@@ -1,9 +1,6 @@
-﻿using EnergyStarX.Helpers;
-using Microsoft.UI.Dispatching;
+﻿using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
-using Microsoft.Windows.AppNotifications;
-using Microsoft.Windows.AppNotifications.Builder;
 
 namespace EnergyStarX;
 
@@ -19,15 +16,10 @@ public static class Program
         AppInstance mainAppInstance = AppInstance.FindOrRegisterForKey(App.Guid);
         if (!mainAppInstance.IsCurrent)
         {
-            AppNotification alreadyRunningNotification = new AppNotificationBuilder().AddText("AlreadyRunningMessage".ToLocalized()).BuildNotification();
-            AppNotificationManager.Default.Show(alreadyRunningNotification);
-
-            Task.Run(async () =>
-            {
-                // Clear the toast notification after several seconds
-                await Task.Delay(TimeSpan.FromSeconds(4));
-                await AppNotificationManager.Default.RemoveAllAsync();
-            }).GetAwaiter().GetResult();
+            // Redirect this activation to the running instance, so that its app window is brought to front.
+            // The app may be running with a hidden app window or a hidden system tray icon, so we need this to show it again.
+            AppActivationArguments activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
+            Task.Run(async () => await mainAppInstance.RedirectActivationToAsync(activationArgs)).GetAwaiter().GetResult();
 
             return;
         }

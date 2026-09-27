@@ -23,17 +23,19 @@ public class SystemTrayIconService : ISystemTrayIconService
 
     private readonly IWindowService windowService;
     private readonly IEnergyService energyService;
+    private readonly ISettingsService settingsService;
 
-    public SystemTrayIconService(IWindowService windowService, IEnergyService energyService)
+    private bool isIconVisible;
+
+    public SystemTrayIconService(IWindowService windowService, IEnergyService energyService, ISettingsService settingsService)
     {
         this.windowService = windowService;
         this.energyService = energyService;
+        this.settingsService = settingsService;
     }
 
     public async Task Initialize()
     {
-        UpdateTrayIconImageAndToolTip(energyService.ThrottleStatus);
-
         trayIcon.ContextMenu = new PopupMenu()
         {
             Items =
@@ -60,6 +62,9 @@ public class SystemTrayIconService : ISystemTrayIconService
         // Or the system tray icon will disappear.
         trayIcon.MessageWindow.TaskbarCreated += (s, e) =>
         {
+            // Don't recreate the icon if user has hidden it. Or it will become visible again.
+            if (!isIconVisible) { return; }
+
             logger.Info("Taskbar restarted. Recreating system tray icon...");
 
             try
@@ -73,7 +78,12 @@ public class SystemTrayIconService : ISystemTrayIconService
             }
         };
 
-        trayIcon.Create();
+        if (!settingsService.HideSystemTrayIcon)
+        {
+            trayIcon.Create();
+            isIconVisible = true;
+            UpdateTrayIconImageAndToolTip(energyService.ThrottleStatus);
+        }
 
         windowService.AppExiting += WindowService_AppExiting;
         energyService.ThrottleStatusChanged += EnergyService_ThrottleStatusChanged;
@@ -84,9 +94,38 @@ public class SystemTrayIconService : ISystemTrayIconService
         UpdateTrayIconImageAndToolTip(energyService.ThrottleStatus);
     }
 
+    public void SetIconVisible(bool visible)
+    {
+        if (visible == isIconVisible) { return; }
+
+        try
+        {
+            if (visible)
+            {
+                trayIcon.Create();
+                isIconVisible = true;
+                UpdateTrayIconImageAndToolTip(energyService.ThrottleStatus);
+            }
+            else
+            {
+                trayIcon.TryRemove();
+                isIconVisible = false;
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Warn(e, "Failed to change system tray icon visibility to {0}", visible);
+        }
+    }
+
     private void WindowService_AppExiting(object? sender, EventArgs e)
     {
-        trayIcon.Remove();
+        if (isIconVisible)
+        {
+            trayIcon.Remove();
+            isIconVisible = false;
+        }
+
         trayIcon.Dispose();
 
         ThrottlingIcon.Dispose();
@@ -100,6 +139,8 @@ public class SystemTrayIconService : ISystemTrayIconService
 
     private void UpdateTrayIconImageAndToolTip(ThrottleStatus throttleStatus)
     {
+        if (!isIconVisible) { return; }
+
         (System.Drawing.Icon icon, string toolTip) = throttleStatus switch
         {
             ThrottleStatus.BlacklistAndAllButWhitelist => (ThrottlingIcon, ThrottlingToolTip),

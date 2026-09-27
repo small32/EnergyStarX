@@ -400,6 +400,21 @@ firefox.exe</value>
   <data name="Settings_ProcessBlacklist.Description" xml:space="preserve">
     <value>黑名单中的进程即使在插电时也会被限制</value>
   </data>
+  <data name="Settings_HideSystemTrayIcon.Header" xml:space="preserve">
+    <value>隐藏系统托盘图标</value>
+  </data>
+  <data name="Settings_HideSystemTrayIcon.Description" xml:space="preserve">
+    <value>隐藏托盘图标后 Energy Star X 仍会在后台运行。再次运行本应用即可重新打开窗口。</value>
+  </data>
+  <data name="Settings_ExitApp.Header" xml:space="preserve">
+    <value>退出 Energy Star X</value>
+  </data>
+  <data name="Settings_ExitAppButton.Content" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="Exit_app_confirmation" xml:space="preserve">
+    <value>确定要退出 Energy Star X 吗？</value>
+  </data>
   <data name="Shell_DonateTextBlock.Text" xml:space="preserve">
     <value>捐赠</value>
   </data>

@@ -12,6 +12,9 @@ public partial class SettingsService : ISettingsService
     [ObservableSetting("ThrottleWhenPluggedIn")]
     private readonly bool throttleWhenPluggedIn = false;
 
+    [ObservableSetting("HideSystemTrayIcon")]
+    private readonly bool hideSystemTrayIcon = false;
+
     [ObservableSetting("BypassProcessListString")]
     private readonly string processWhitelistString = "DefaultProcessWhitelist".ToLocalized();
 

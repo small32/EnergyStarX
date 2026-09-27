@@ -151,6 +151,22 @@
                                 <Button x:Uid="Settings_ProcessBlacklist_RestoreToDefaultButton" Command="{x:Bind ViewModel.RestoreToDefaultProcessBlacklistCommand}" />
                             </StackPanel>
                         </lab:SettingsCard>
+
+                        <lab:SettingsCard x:Uid="Settings_HideSystemTrayIcon">
+                            <lab:SettingsCard.HeaderIcon>
+                                <FontIcon Glyph="&#xE890;" />
+                            </lab:SettingsCard.HeaderIcon>
+
+                            <ToggleSwitch Margin="{StaticResource SettingsExpanderContentMargin}" IsOn="{x:Bind ViewModel.HideSystemTrayIcon, Mode=TwoWay}" />
+                        </lab:SettingsCard>
+
+                        <lab:SettingsCard x:Uid="Settings_ExitApp">
+                            <lab:SettingsCard.HeaderIcon>
+                                <FontIcon Glyph="&#xE7E8;" />
+                            </lab:SettingsCard.HeaderIcon>
+
+                            <Button x:Uid="Settings_ExitAppButton" Margin="{StaticResource SettingsExpanderContentMargin}" Command="{x:Bind ViewModel.ExitAppCommand}" />
+                        </lab:SettingsCard>
                     </StackPanel>
 
                     <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubTitleStyle}" />

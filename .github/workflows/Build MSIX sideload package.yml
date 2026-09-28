@@ -3,6 +3,11 @@
 
 name: Build MSIX sideload package
 
+# The create-draft-release job creates a release with the automatically provided GITHUB_TOKEN,
+# which is read-only unless "contents: write" is requested here.
+permissions:
+  contents: write
+
 on: [push, pull_request, workflow_dispatch]
 
 jobs:

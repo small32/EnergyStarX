@@ -37,6 +37,8 @@ jobs:
       TEST_PROJECT_NAME: EnergyStarX.Test
       CERT_FILE_NAME: GitHubActionsWorkflow.pfx
       CONFIGURATION: Release
+      # The certificate subject must match the Publisher attribute in src/EnergyStarX/Package.appxmanifest
+      PUBLISHER_NAME: CN=2A18AEF8-4016-420C-BAB0-8B721712E8D1
 
     defaults:
       run:
@@ -108,7 +110,7 @@ jobs:
 
             $temporaryCertificate = New-SelfSignedCertificate `
                 -Type Custom `
-                -Subject "CN=EnergyStarX Temporary Self-Signed Certificate" `
+                -Subject "${{ env.PUBLISHER_NAME }}" `
                 -KeyUsage DigitalSignature `
                 -KeyExportPolicy Exportable `
                 -CertStoreLocation "Cert:\CurrentUser\My" `

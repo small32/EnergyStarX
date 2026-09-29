@@ -35,6 +35,12 @@ public class EnergyService : IEnergyService
     private uint pendingProcPid = 0;
     private string pendingProcName = "";
 
+    /// <summary>
+    /// Priority class of each throttled process before it got throttled, so it can be restored when throttling stops.
+    /// Keyed by process id.
+    /// </summary>
+    private readonly Dictionary<uint, Win32Api.PriorityClass> originalPriorityClasses = new();
+
     public ThrottleStatus ThrottleStatus { get; private set; } = ThrottleStatus.Stopped;
 
     private bool pauseThrottling = false;
@@ -370,8 +376,16 @@ public class EnergyService : IEnergyService
             {
                 if (proc.Id == pendingProcPid) { continue; }
                 if (ShouldBypassProcess($"{proc.ProcessName}.exe".ToLowerInvariant(), toThrottleStatus)) { continue; }
-                IntPtr hProcess = Win32Api.OpenProcess((uint)Win32Api.ProcessAccessFlags.SetInformation, false, (uint)proc.Id);
-                ToggleEfficiencyMode(hProcess, true);
+                IntPtr hProcess = Win32Api.OpenProcess((uint)(Win32Api.ProcessAccessFlags.QueryLimitedInformation |
+                    Win32Api.ProcessAccessFlags.SetInformation), false, (uint)proc.Id);
+                if (hProcess == IntPtr.Zero)
+                {
+                    logger.Debug("Failed to open process {0} (pid {1}) to throttle it. Win32 error: {2}",
+                        proc.ProcessName, proc.Id, Marshal.GetLastWin32Error());
+                    continue;
+                }
+
+                ThrottleProcess(hProcess, (uint)proc.Id);
                 Win32Api.CloseHandle(hProcess);
             }
 
@@ -403,8 +417,16 @@ public class EnergyService : IEnergyService
             foreach (Process proc in sameAsThisSession)
             {
                 if (ShouldBypassProcess($"{proc.ProcessName}.exe".ToLowerInvariant(), fromThrottleStatus)) { continue; }
-                IntPtr hProcess = Win32Api.OpenProcess((uint)Win32Api.ProcessAccessFlags.SetInformation, false, (uint)proc.Id);
-                ToggleEfficiencyMode(hProcess, false);
+                IntPtr hProcess = Win32Api.OpenProcess((uint)(Win32Api.ProcessAccessFlags.QueryLimitedInformation |
+                    Win32Api.ProcessAccessFlags.SetInformation), false, (uint)proc.Id);
+                if (hProcess == IntPtr.Zero)
+                {
+                    logger.Debug("Failed to open process {0} (pid {1}) to unthrottle it. Win32 error: {2}",
+                        proc.ProcessName, proc.Id, Marshal.GetLastWin32Error());
+                    continue;
+                }
+
+                UnthrottleProcess(hProcess, (uint)proc.Id);
                 Win32Api.CloseHandle(hProcess);
             }
 
@@ -486,21 +508,31 @@ public class EnergyService : IEnergyService
             if (!bypass)
             {
                 logger.Info("Boosting {0}", appName);
-                ToggleEfficiencyMode(procHandle, false);
+                UnthrottleProcess(procHandle, procId);
             }
 
             if (pendingProcPid != 0)
             {
                 logger.Info("Throttle {0}", pendingProcName);
 
-                IntPtr prevProcHandle = Win32Api.OpenProcess((uint)Win32Api.ProcessAccessFlags.SetInformation, false, pendingProcPid);
+                IntPtr prevProcHandle = Win32Api.OpenProcess((uint)(Win32Api.ProcessAccessFlags.QueryLimitedInformation |
+                    Win32Api.ProcessAccessFlags.SetInformation), false, pendingProcPid);
                 if (prevProcHandle != IntPtr.Zero)
                 {
-                    ToggleEfficiencyMode(prevProcHandle, true);
+                    ThrottleProcess(prevProcHandle, pendingProcPid);
                     Win32Api.CloseHandle(prevProcHandle);
-                    pendingProcPid = 0;
-                    pendingProcName = "";
                 }
+                else
+                {
+                    logger.Debug("Failed to open previously foreground process {0} (pid {1}) to throttle it. Win32 error: {2}",
+                        pendingProcName, pendingProcPid, Marshal.GetLastWin32Error());
+                }
+
+                // Always clear the pending process, even if it could not be opened (for example because it already
+                // exited). Otherwise it would stay exempt from throttling forever, and we would retry opening it on
+                // every foreground window change. If it is still running, house keeping will throttle it later.
+                pendingProcPid = 0;
+                pendingProcName = "";
             }
 
             if (!bypass)
@@ -551,11 +583,56 @@ public class EnergyService : IEnergyService
         return false;
     }
 
-    private void ToggleEfficiencyMode(IntPtr hProcess, bool enable)
+    private void ThrottleProcess(IntPtr hProcess, uint processId)
     {
-        Win32Api.SetProcessInformation(hProcess, Win32Api.PROCESS_INFORMATION_CLASS.ProcessPowerThrottling,
-            enable ? pThrottleOn : pThrottleOff, (uint)szControlBlock);
-        Win32Api.SetPriorityClass(hProcess, enable ? Win32Api.PriorityClass.IDLE_PRIORITY_CLASS : Win32Api.PriorityClass.NORMAL_PRIORITY_CLASS);
+        // Remember the priority class this process has before it gets throttled, so UnthrottleProcess can restore it.
+        // Skip recording when the process is already running at IDLE_PRIORITY_CLASS (it either got throttled before,
+        // or it is idle by design) or when GetPriorityClass failed, otherwise we would remember a bogus "original" value.
+        Win32Api.PriorityClass currentPriorityClass = Win32Api.GetPriorityClass(hProcess);
+        if ((uint)currentPriorityClass != 0 && currentPriorityClass != Win32Api.PriorityClass.IDLE_PRIORITY_CLASS)
+        {
+            originalPriorityClasses[processId] = currentPriorityClass;
+        }
+
+        if (!Win32Api.SetProcessInformation(hProcess, Win32Api.PROCESS_INFORMATION_CLASS.ProcessPowerThrottling,
+                pThrottleOn, (uint)szControlBlock))
+        {
+            logger.Warn("Failed to throttle process {0}. Win32 error: {1}", processId, Marshal.GetLastWin32Error());
+        }
+
+        if (!Win32Api.SetPriorityClass(hProcess, Win32Api.PriorityClass.IDLE_PRIORITY_CLASS))
+        {
+            logger.Warn("Failed to set idle priority for process {0}. Win32 error: {1}", processId, Marshal.GetLastWin32Error());
+        }
+    }
+
+    private void UnthrottleProcess(IntPtr hProcess, uint processId)
+    {
+        if (!Win32Api.SetProcessInformation(hProcess, Win32Api.PROCESS_INFORMATION_CLASS.ProcessPowerThrottling,
+                pThrottleOff, (uint)szControlBlock))
+        {
+            logger.Warn("Failed to unthrottle process {0}. Win32 error: {1}", processId, Marshal.GetLastWin32Error());
+        }
+
+        // Restore the priority class the process had before it got throttled.
+        if (!originalPriorityClasses.Remove(processId, out Win32Api.PriorityClass originalPriorityClass))
+        {
+            // This process was not throttled by the current run of the app, so its priority class must be left alone.
+            // The only exception is a process that is still stuck at IDLE_PRIORITY_CLASS: that means it was throttled
+            // by a previous run of this app which did not get to restore it.
+            if (Win32Api.GetPriorityClass(hProcess) != Win32Api.PriorityClass.IDLE_PRIORITY_CLASS)
+            {
+                return;
+            }
+
+            originalPriorityClass = Win32Api.PriorityClass.NORMAL_PRIORITY_CLASS;
+        }
+
+        if (!Win32Api.SetPriorityClass(hProcess, originalPriorityClass))
+        {
+            logger.Warn("Failed to restore priority class {0} for process {1}. Win32 error: {2}",
+                originalPriorityClass, processId, Marshal.GetLastWin32Error());
+        }
     }
 
     private void PowerManager_PowerSourceKindChanged(object? sender, object e)

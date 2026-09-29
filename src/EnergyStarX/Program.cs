@@ -13,6 +13,8 @@ public static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        WinRT.ComWrappersSupport.InitializeComWrappers();
+
         AppInstance mainAppInstance = AppInstance.FindOrRegisterForKey(App.Guid);
         if (!mainAppInstance.IsCurrent)
         {
@@ -23,8 +25,6 @@ public static class Program
 
             return;
         }
-
-        WinRT.ComWrappersSupport.InitializeComWrappers();
 
         Application.Start(p =>
         {

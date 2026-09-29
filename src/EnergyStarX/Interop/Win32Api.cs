@@ -29,6 +29,9 @@ public static class Win32Api
     public static extern bool SetPriorityClass(IntPtr handle, PriorityClass priorityClass);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern PriorityClass GetPriorityClass(IntPtr handle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     [SuppressUnmanagedCodeSecurity]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseHandle(IntPtr hObject);
